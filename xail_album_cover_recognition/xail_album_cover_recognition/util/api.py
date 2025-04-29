@@ -11,11 +11,14 @@ import torch.nn as nn
 from torchvision.models import vgg16
 import json
 
+loaded_model = None
+
 def match_album(image_url):
     """
     Match an album using the provided image URL.
     """
-
+    global loaded_model
+    
     # site_home = get_site_name(frappe.local.request.host)
 
     filename = f'./assets/xail_album_cover_recognition/data/Discogs Data.xlsx'
@@ -29,18 +32,21 @@ def match_album(image_url):
 
     df_albums = pd.read_excel(filename)
     df_albums.fillna(method='ffill', inplace=True)
-
-    # loaded_model = torch.load(model_filename, weights_only=False)
     device = torch.device('cpu')
-    loaded_model = vgg16(pretrained=True)
 
-    # Freeze all the layers in the model
-    for param in loaded_model.parameters():
-        param.requires_grad = False
+    # Check if the model is already loaded
+    if loaded_model is None:
+        # loaded_model = torch.load(model_filename, weights_only=False)
+        
+        loaded_model = vgg16(pretrained=True)
 
-    loaded_model.classifier[6] = nn.Linear(loaded_model.classifier[6].in_features, num_classes) 
-    loaded_model.load_state_dict(torch.load(model_filename, map_location=device, weights_only=True))
-    
+        # Freeze all the layers in the model
+        for param in loaded_model.parameters():
+            param.requires_grad = False
+
+        loaded_model.classifier[6] = nn.Linear(loaded_model.classifier[6].in_features, num_classes) 
+        loaded_model.load_state_dict(torch.load(model_filename, map_location=device, weights_only=True))
+        
     transform = transforms.Compose([
         transforms.Resize((150, 150)),  # Optional: Resize if needed
         transforms.ToTensor()            # Converts to tensor and scales to [0, 1]
