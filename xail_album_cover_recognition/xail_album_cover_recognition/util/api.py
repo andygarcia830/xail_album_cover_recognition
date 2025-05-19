@@ -8,7 +8,7 @@ import requests
 from io import BytesIO
 
 import torch.nn as nn
-from torchvision.models import vgg16
+import torchvision.models as models
 import json
 
 loaded_model = None
@@ -26,22 +26,22 @@ def match_album(image_url):
     global device
 
 
-
-
     # site_home = get_site_name(frappe.local.request.host)
 
-    filename = f'./assets/xail_album_cover_recognition/data/Discogs Data.xlsx'
-    model_filename = './assets/xail_album_cover_recognition/model/vgg16_finetuned.pth'
+    # filename = f'./assets/xail_album_cover_recognition/data/popular_vinyl_detailed.xlsx'
+    model_filename = './assets/xail_album_cover_recognition/model/resnet50_finetuned.pth'
     mapping_file = './assets/xail_album_cover_recognition/data/class_mapping.json'
 
     class_dict = {}
+    
     with open(mapping_file, 'r') as f:
         class_dict = json.load(f)
     num_classes = len(class_dict)
+    class_list = list(class_dict.keys())
 
-    if df_albums is None:
-        df_albums = pd.read_excel(filename)
-        df_albums.fillna(method='ffill', inplace=True)
+    # if df_albums is None:
+    #     df_albums = pd.read_excel(filename)
+    #     df_albums.fillna(method='ffill', inplace=True)
 
     if device is None:
         device = torch.device('cpu')
@@ -49,15 +49,16 @@ def match_album(image_url):
     # Check if the model is already loaded
     if loaded_model is None:
         # loaded_model = torch.load(model_filename, weights_only=False)
-        
-        loaded_model = vgg16(pretrained=True)
 
-        # Freeze all the layers in the model
-        for param in loaded_model.parameters():
-            param.requires_grad = False
+        loaded_model = models.resnet50(pretrained=False)
+        num_ftrs = loaded_model.fc.in_features
 
-        loaded_model.classifier[6] = nn.Linear(loaded_model.classifier[6].in_features, num_classes) 
+        # Replace the final fully connected layer with a new one for our number of classes
+        loaded_model.fc = nn.Linear(num_ftrs, num_classes)
+
         loaded_model.load_state_dict(torch.load(model_filename, map_location=device, weights_only=True))
+        # loaded_model = torch.load(model_filename)
+        loaded_model.eval()
     if transform is None:
         transform = transforms.Compose([
             transforms.Resize((150, 150)),  # Optional: Resize if needed
@@ -69,22 +70,26 @@ def match_album(image_url):
 
     img_tensor = transform(img)
 
-    img_tensor = img_tensor.unsqueeze(0)  # Now shape is (1, C, H, W)
+    img_tensor = img_tensor.unsqueeze(0).to(device)  # Now shape is (1, C, H, W)
 
     with torch.no_grad():
-        Prediction= loaded_model.forward(img_tensor.float().to(device))
-    print(Prediction)
-    pred_class = Prediction.argmax().item()
-    print(pred_class)
+            output = loaded_model(img_tensor)
+            _, predicted_index = torch.max(output, 1)
+            predicted_index = predicted_index.item()
+    print(predicted_index)
+    predicted_class = class_list[predicted_index]
+    print(predicted_class)
 
     # class_dict = train_dataset.class_to_idx
+    return predicted_class
 
 
-    for key in class_dict:
-        if class_dict[key] == pred_class:
-            print('CLOSEST IMAGE MATCH:')
-            print(df_albums.loc[df_albums['ID (Release Code)'] == key].iloc[0])
-            return df_albums.loc[df_albums['ID (Release Code)'] == key].iloc[0]
+
+    # for key in class_dict:
+    #     if class_dict[key] == pred_class:
+    #         print('CLOSEST IMAGE MATCH:')
+    #         print(df_albums.loc[df_albums['ID (Release Code)'] == key].iloc[0])
+    #         return df_albums.loc[df_albums['ID (Release Code)'] == key].iloc[0]
 
 
 @frappe.whitelist(allow_guest=True)
