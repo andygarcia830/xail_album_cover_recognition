@@ -74,10 +74,11 @@ def match_album(image_url):
 
     with torch.no_grad():
             output = loaded_model(img_tensor)
-            _, predicted_index = torch.max(output, 1)
-            predicted_index = predicted_index.item()
-    print(predicted_index)
-    predicted_class = class_list[predicted_index]
+            _, top5_indices = torch.topk(output, 5, dim = 1)
+            # predicted_index = predicted_index.item()
+            top5_indices = top5_indices.squeeze().tolist()  # shape [5]
+    print(top5_indices)
+    predicted_class = [class_list[x] for x in top5_indices]
     print(predicted_class)
 
     # class_dict = train_dataset.class_to_idx
