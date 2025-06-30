@@ -74,15 +74,18 @@ def match_album(image_url):
 
     with torch.no_grad():
             output = loaded_model(img_tensor)
-            _, top5_indices = torch.topk(output, 5, dim = 1)
+            probabilities = torch.softmax(output, dim=1)
+            topk_probs, topk_indices = torch.topk(probabilities, k=5, dim=1)
+            # _, top5_indices = torch.topk(output, 5, dim = 1)
             # predicted_index = predicted_index.item()
-            top5_indices = top5_indices.squeeze().tolist()  # shape [5]
-    print(top5_indices)
-    predicted_class = [class_list[x] for x in top5_indices]
-    print(predicted_class)
+            # top5_indices = top5_indices.squeeze().tolist()  # shape [5]
+            topk_probs_list = topk_probs.squeeze().tolist()
+            topk_indices_list = topk_indices.squeeze().tolist()
 
-    # class_dict = train_dataset.class_to_idx
-    return predicted_class
+    topk_class_names = [class_list[idx] for idx in topk_indices_list]
+        
+    # Return the lists of indices, names, and probabilities
+    return list(zip(topk_class_names, topk_probs_list))
 
 
 
